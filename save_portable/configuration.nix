@@ -36,7 +36,6 @@
   i18n.defaultLocale = "en_US.UTF-8";
   console = {
     font = "Lat2-Terminus16";
-    # keyMap = "us";
     useXkbConfig = true; # use xkbOptions in tty.
   };
 
@@ -56,14 +55,15 @@
     windowManager.i3 = {
       enable = true;
       extraPackages = with pkgs; [
-		dmenu
-		i3status
-		i3lock
-		i3lock-color
-		xorg.xdpyinfo
-		dunst
-		betterlockscreen
-		i3blocks
+	xorg.xbacklight
+	dmenu
+	i3status
+	i3lock
+	i3lock-color
+	xorg.xdpyinfo
+	dunst
+	betterlockscreen
+	i3blocks
       ];
     };
   };
@@ -76,13 +76,36 @@
   services.picom.enable = true;
 
   # Configure keymap in X11
-  services.xserver.layout = "us";
+  services.xserver.layout = "fr";
   services.xserver.xkbOptions = "caps:escape";
 
   # Enable CUPS to print documents.
   # services.printing.enable = true;
 
   # Enable sound.
+  services.mpd = {
+    enable = true;
+    extraConfig = ''
+  audio_output {
+    type "pulse"
+    name "My PulseAudio" # this can be whatever you want
+  }
+  '';
+  };
+
+  # screen brightness
+  # programs.light.enable = true;
+  services.actkbd = {
+    enable = true;
+    bindings = [
+      { keys = [ 232 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/brightnessctl -s +5%"; }
+      { keys = [ 233 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/brightnessctl -s 5%-"; }
+    ];
+  };
+  # services.udev.extraRules = ''
+  #   ACTION=="add", SUBSYSTEM=="backlight", KERNEL=="intel_backlight", MODE="0666", RUN+="${pkgs.coreutils}/bin/chmod a+w /sys/class/backlight/%k/brightness"
+  # '';
+
   sound.enable = true;
   hardware.pulseaudio.enable = true;
   nixpkgs.config.pulseaudio = true;
@@ -101,6 +124,8 @@
       tree
     ];
   };
+
+  security.sudo.wheelNeedsPassword = false;
 
   fonts = {
     enableDefaultFonts = true;
@@ -125,35 +150,48 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
+    # stylish
     rofi
     picom
-    neovim
-    spotify
-    keepassxc
-    gcc
     nerdfonts
     polybar
+    nitrogen
+    oh-my-zsh
+    libmpdclient
+    mpd
+
+    # useful for dev
+    neovim
+    gcc
+    gnumake
+    python311
+    gdb
+    valgrind
+    clang-tools
+    git
+    bat
+    vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+
+    # useful
+    spotify
+    keepassxc
     zip
     unzip
-    gnumake
-    nitrogen
-    python311
-    libmpdclient
-    gdb
+    ifwifi
     file
     feh
     pavucontrol
     flameshot
     sshfs
     krb5
-    valgrind
-    clang-tools
-    git
     zsh
     alacritty
-    oh-my-zsh
-    vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
     wget
+    brightnessctl
+    actkbd
+
+    # games
+    prismlauncher
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
