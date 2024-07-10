@@ -24,9 +24,23 @@
   # Pick only one of the below networking options.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
   networking.networkmanager.enable = true;  # Easiest to use and most distros use this by default.
+  networking.networkmanager.wifi.macAddress = "permanent";
+  networking.networkmanager.ethernet.macAddress = "permanent";
+  networking.networkmanager.wifi.scanRandMacAddress = false;
+  systemd.services.wpa_supplicant.environment.OPENSSL_CONF = pkgs.writeText "openssl.conf" ''
+	openssl_conf = openssl_init
+	[openssl_init]
+	ssl_conf = ssl_sect
+	system_default = system_default_sect
+	[system_default_sect]
+	Options = UnsafeLegacyRenegotiation
+	[system_default_sect]
+	CipherString = Default:@SECLEVEL=0
+  '';
 
   # Set your time zone.
   time.timeZone = "Europe/Paris";
+  time.hardwareClockInLocalTime = true;
 
   # Configure network proxy if necessary
   # networking.proxy.default = "http://user:password@proxy:port/";
@@ -66,9 +80,30 @@
 	i3blocks
       ];
     };
+
+  config = ''
+    Section "Screen"
+        Identifier     "Screen0"
+        Device         "Device0"
+        Monitor        "Monitor0"
+        DefaultDepth   24
+        Option         "Stereo" "0"
+        Option         "nvidiaXineramaInfoOrder" "DFP-5"
+        Option         "metamodes" "nvidia-auto-select +0+0 {ForceCompositionPipeline=On, ForceFullCompositionPipeline=On}"
+        Option         "SLI" "Off"
+        Option         "MultiGPU" "Off"
+        Option         "BaseMosaic" "off"
+        SubSection     "Display"
+        Depth          24
+        EndSubSection
+    EndSection
+  '';
   };
 
-
+  # allow manual for dev purpose
+  documentation.dev.enable = true;
+  documentation.enable = true;
+  documentation.man.enable = true;
   
   # allow nixos to install achats-in-app apps
   nixpkgs.config.allowUnfree = true;
@@ -79,35 +114,93 @@
   services.xserver.layout = "fr";
   services.xserver.xkbOptions = "caps:escape";
 
+  # enable NVIDIA drivers
+  # Enable OpenGL
+  hardware.opengl = {
+   enable = true;
+   driSupport = true;
+   driSupport32Bit = true;
+  };
+
+  # Load nvidia driver for Xorg and Wayland
+  services.xserver.videoDrivers = ["nvidia"];
+
+  hardware.nvidia = {
+
+   # Modesetting is required.
+   modesetting.enable = true;
+
+  # Nvidia power management. Experimental, and can cause sleep/suspend to fail.
+   powerManagement.enable = false;
+  # Fine-grained power management. Turns off GPU when not in use.
+  # Experimental and only works on modern Nvidia GPUs (Turing or newer).
+   powerManagement.finegrained = false;
+
+  # Use the NVidia open source kernel module (not to be confused with the
+  # independent third-party "nouveau" open source driver).
+  # Support is limited to the Turing and later architectures. Full list of 
+  # supported GPUs is at: 
+  # https://github.com/NVIDIA/open-gpu-kernel-modules#compatible-gpus 
+  # Only available from driver 515.43.04+
+  # Currently alpha-quality/buggy, so false is currently the recommended setting.
+   open = false;
+
+  # Enable the Nvidia settings menu,
+  # accessible via `nvidia-settings`.
+   nvidiaSettings = true;
+
+  # Optionally, you may need to select the appropriate driver version for your specific GPU.
+   package = config.boot.kernelPackages.nvidiaPackages.stable;
+  };
+  hardware.nvidia.prime = {
+	   offload = {
+		  enable = true;
+		  enableOffloadCmd = true;
+       };
+	  # Make sure to use the correct Bus ID values for your system!
+	  intelBusId = "PCI:0:2:0";
+	  nvidiaBusId = "PCI:1:0:0";
+  };
+
   # Enable CUPS to print documents.
   # services.printing.enable = true;
 
-  # Enable sound.
-  services.mpd = {
-    enable = true;
-    extraConfig = ''
-  audio_output {
-    type "pulse"
-    name "My PulseAudio" # this can be whatever you want
-  }
-  '';
-  };
-
   # screen brightness
   # programs.light.enable = true;
-  services.actkbd = {
-    enable = true;
-    bindings = [
-      { keys = [ 232 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/brightnessctl -s +5%"; }
-      { keys = [ 233 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/brightnessctl -s 5%-"; }
-    ];
-  };
+  # services.actkbd = {
+    # enable = true;
+    # bindings = [
+      # { keys = [ 232 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/brightnessctl -s +5%"; }
+      # { keys = [ 233 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/brightnessctl -s 5%-"; }
+    # ];
+  # };
   # services.udev.extraRules = ''
   #   ACTION=="add", SUBSYSTEM=="backlight", KERNEL=="intel_backlight", MODE="0666", RUN+="${pkgs.coreutils}/bin/chmod a+w /sys/class/backlight/%k/brightness"
   # '';
 
+  # enable bluetooth
+  services.blueman.enable = true;
+
   sound.enable = true;
-  hardware.pulseaudio.enable = true;
+  hardware = {
+        pulseaudio = {
+                enable = true;
+                # Enable extra bluetooth codecs
+                package = pkgs.pulseaudioFull;
+                # Automatically switch audio to connected bluetooth device when it connects
+                extraConfig = "
+                        load-module module-switch-on-connect
+                ";
+        };
+        bluetooth = {
+                # Enable support for bluetooth
+                enable = true;
+                # Powers up the default bluetooth controller on boot
+                powerOnBoot = true;
+                # Modern headsets will generally try to connect using the A2DP profile, enables it
+                settings.General.Enable = "Source,Sink,Media,Socket";
+        };
+    };
   nixpkgs.config.pulseaudio = true;
 
   # Enable touchpad support (enabled default in most desktopManager).
@@ -116,7 +209,7 @@
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.evariste = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" ]; # Enable ‘sudo’ for the user.
+    extraGroups = [ "wheel" "networkmanager" "docker" ]; # Enable ‘sudo’ for the user.
     shell = pkgs.zsh;
     packages = with pkgs; [
       firefox
@@ -125,11 +218,14 @@
     ];
   };
 
+  # docker settings
+  virtualisation.docker.enable = true;
+
   security.sudo.wheelNeedsPassword = false;
 
   fonts = {
-    enableDefaultFonts = true;
-    fonts = with pkgs; [
+    enableDefaultPackages = true;
+    packages = with pkgs; [
       nerdfonts
     ];
   };
@@ -139,13 +235,33 @@
         enable = true;
         enableCompletion = true;
         ohMyZsh = {
-        enable = true;
+	enable = true;
         plugins = [ "git" "python" "man" ];
         theme = "avit";
         };
     };
   };
 
+  # enable flakes
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
+  # All values except 'enable' are optional.
+ #services.redshift = {
+ #  enable = true;
+ #  brightness = {
+ #    # Note the string values below.
+ #    day = "1";
+ #    night = "1";
+ #  };
+ #  temperature = {
+ #    day = 5500;
+ #    night = 3700;
+ #  };
+ #};
+  #services.geoclue2.appConfig.redshift.isAllowed = true;
+
+  # steam
+  programs.steam.enable = true;
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
@@ -156,42 +272,54 @@
     nerdfonts
     polybar
     nitrogen
-    oh-my-zsh
     libmpdclient
-    mpd
 
     # useful for dev
+    bat
+    man-pages
+    man-pages-posix
     neovim
     gcc
+    zip
+    unzip
     gnumake
     python311
     gdb
     valgrind
     clang-tools
     git
-    bat
+    zsh
+    alacritty
+    oh-my-zsh
     vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+    docker
+    nvidia-podman
+    direnv
+    xsel
+    # tldr
 
     # useful
     spotify
     keepassxc
-    zip
-    unzip
-    ifwifi
+    # ifwifi
     file
     feh
     pavucontrol
     flameshot
     sshfs
     krb5
-    zsh
-    alacritty
     wget
     brightnessctl
-    actkbd
+    # actkbd
+    redshift
+    geoclue2 # used by redshift
+    playerctl
 
     # games
     prismlauncher
+    config.boot.kernelPackages.nvidiaPackages.stable
+    # lshw
+    steam
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
