@@ -27,10 +27,49 @@
 
   # Set your time zone.
   time.timeZone = "Europe/Paris";
+  time.hardwareClockInLocalTime = true;
 
   # Configure network proxy if necessary
   # networking.proxy.default = "http://user:password@proxy:port/";
   # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
+
+  # Enable OpenGL
+  hardware.opengl = {
+    enable = true;
+    driSupport = true;
+    driSupport32Bit = true;
+  };
+
+  # Load nvidia driver for Xorg and Wayland
+  services.xserver.videoDrivers = ["nvidia"];
+
+  hardware.nvidia = {
+
+    # Modesetting is required.
+    modesetting.enable = true;
+
+    # Nvidia power management. Experimental, and can cause sleep/suspend to fail.
+    powerManagement.enable = false;
+    # Fine-grained power management. Turns off GPU when not in use.
+    # Experimental and only works on modern Nvidia GPUs (Turing or newer).
+    powerManagement.finegrained = false;
+
+    # Use the NVidia open source kernel module (not to be confused with the
+    # independent third-party "nouveau" open source driver).
+    # Support is limited to the Turing and later architectures. Full list of 
+    # supported GPUs is at: 
+    # https://github.com/NVIDIA/open-gpu-kernel-modules#compatible-gpus 
+    # Only available from driver 515.43.04+
+    # Currently alpha-quality/buggy, so false is currently the recommended setting.
+    open = false;
+
+    # Enable the Nvidia settings menu,
+	# accessible via `nvidia-settings`.
+    nvidiaSettings = true;
+
+    # Optionally, you may need to select the appropriate driver version for your specific GPU.
+    package = config.boot.kernelPackages.nvidiaPackages.stable;
+  };
 
   # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
@@ -51,8 +90,10 @@
     displayManager = {
       defaultSession = "none+i3";
       sessionCommands = ''
-	 xrandr --output HDMI-1 --mode 2560x1440 --rate 100.00 --primary --output DP-3 --mode 1920x1080 --rate 144.00 --left-of HDMI-1 
+        xrandr --output DP-0 --auto --primary --right-of HDMI-0 --output DP-2 --auto --right-of DP-0
       ''; 
+    # xrandr --output DP-0 --auto --primary --right-of HDMI-0 --output HDMI-0 --auto
+    # xrandr --output DP-0 --auto --primary --output DP-2 --auto --left-of DP-0
     };
 
     windowManager.i3 = {
@@ -70,7 +111,10 @@
     };
   };
 
-
+  # allow manual for dev purpose
+  documentation.dev.enable = true;
+  documentation.enable = true;
+  documentation.man.enable = true;
   
   # allow nixos to install achats-in-app apps
   nixpkgs.config.allowUnfree = true;
@@ -78,15 +122,52 @@
   services.picom.enable = true;
 
   # Configure keymap in X11
-  services.xserver.layout = "us";
-  services.xserver.xkbOptions = "caps:escape";
+  services.xserver = {
+    layout  = "us";
+    xkbVariant = "intl";
+    xkbOptions = "caps:escape";
+  };
+
+  # keybinds
+  # sound.mediaKeys.enable = true;
+  # services.actkbd = {
+    # enable = true;
+    # bindings = [
+      # { keys = [ 164 ]; events = [ "key" ]; command = "${pkgs.playerctl}/bin/playerctl play-pause"; }
+      # { keys = [ 165 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/playerctl previous"; }
+      # { keys = [ 163 ]; events = [ "key" ]; command = "playerctl next"; }
+      # { keys = [ 114 ]; events = [ "key" ]; command = "playerctl volume -0.1"; }
+      # { keys = [ 115 ]; events = [ "key" ]; command = "playerctl volume +0.1"; }
+    # ];
+  # };
 
   # Enable CUPS to print documents.
   # services.printing.enable = true;
 
+  # enable bluetooth
+  services.blueman.enable = true;
+
   # Enable sound.
   sound.enable = true;
-  hardware.pulseaudio.enable = true;
+    hardware = {
+        pulseaudio = {
+                enable = true;
+                # Enable extra bluetooth codecs
+                package = pkgs.pulseaudioFull;
+                # Automatically switch audio to connected bluetooth device when it connects
+                extraConfig = "
+                        load-module module-switch-on-connect
+                ";
+        };
+        bluetooth = {
+                # Enable support for bluetooth
+                enable = true;
+                # Powers up the default bluetooth controller on boot
+                powerOnBoot = true;
+                # Modern headsets will generally try to connect using the A2DP profile, enables it
+                settings.General.Enable = "Source,Sink,Media,Socket";
+        };
+    };
   nixpkgs.config.pulseaudio = true;
 
   # Enable touchpad support (enabled default in most desktopManager).
@@ -95,7 +176,7 @@
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.evariste = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" ]; # Enable ‘sudo’ for the user.
+    extraGroups = [ "wheel" "networkmanager" "docker" ]; # Enable ‘sudo’ for the user.
     shell = pkgs.zsh;
     packages = with pkgs; [
       firefox
@@ -104,12 +185,26 @@
     ];
   };
 
+  # docker settings
+  virtualisation.docker.enable = true;
+
   fonts = {
-    enableDefaultFonts = true;
-    fonts = with pkgs; [
+    enableDefaultPackages = true;
+    packages = with pkgs; [
       nerdfonts
     ];
   };
+
+  # test
+  services.xserver.libinput.mouse.accelSpeed = null;
+
+  # steam setup
+  programs.steam = {
+    enable = true;
+    remotePlay.openFirewall = true; # Open ports in the firewall for Steam Remote Play
+    dedicatedServer.openFirewall = true; # Open ports in the firewall for Source Dedicated Server
+  };
+
 
   programs = {
     zsh = {
@@ -123,39 +218,63 @@
     };
   };
 
+  # enable flakes
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];  
+
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
+    # stylish
     rofi
     picom
-    neovim
-    spotify
-    keepassxc
-    gcc
     nerdfonts
     polybar
+    nitrogen
+    libmpdclient
+
+    # dev
+    bat
+    man-pages
+    man-pages-posix
+    neovim
+    gcc
     zip
     unzip
     gnumake
-    nitrogen
     python311
-    libmpdclient    
     gdb
-    file
-    feh
-    pavucontrol
-    flameshot
-    sshfs
-    krb5
     valgrind
     clang-tools
     git
     zsh
     alacritty
     oh-my-zsh
-    vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+    vim
+    docker
+    nvidia-podman
+    direnv
+    xsel
+    maven
+
+    # useful
+    slack
+    spotify
+    keepassxc
+    file
+    feh
+    pavucontrol
+    flameshot
+    sshfs
+    krb5
     wget
+    playerctl
+    docker
+
+    # games
+    prismlauncher
+    steam
+    protonup-qt
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
