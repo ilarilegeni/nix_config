@@ -10,20 +10,119 @@
       ./hardware-configuration.nix
     ];
 
-  # Use the GRUB 2 boot loader.
-  # boot.loader.grub.enable = true;
-  # boot.loader.grub.efiSupport = true;
-  # boot.loader.grub.efiInstallAsRemovable = true;
-  # boot.loader.efi.efiSysMountPoint = "/boot/efi";
+  nixpkgs.config.permittedInsecurePackages = [
+                "qbittorrent-4.6.4"
+              ];
+
   # Define on which hard drive you want to install Grub.
-  # boot.loader.grub.device = "/dev/sda"; # or "nodev" for efi only
-  boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.loader.efi.efiSysMountPoint = "/boot";
+
+  boot.loader.grub = {
+    enable = true;
+    device = "nodev";
+    efiSupport = true;
+    useOSProber = true;
+    theme = pkgs.stdenv.mkDerivation rec {
+      pname = "catppuccin-grub";
+      version = "1";
+      src = pkgs.fetchFromGitHub {
+        owner = "catppuccin";
+        repo = "grub";
+        rev = "803c5df";
+        hash = "sha256-/bSolCta8GCZ4lP0u5NVqYQ9Y3ZooYCNdTwORNvR7M0=";
+      };
+      installPhase = "
+        mkdir -p $out
+        cp -r src/catppuccin-mocha-grub-theme/* $out/  
+      ";
+      meta = {
+        description = "catppuccin-grub";
+      };
+    };
+  };
+
+  boot.initrd.luks.devices = {
+    nixroot = {
+      device = "/dev/disk/by-uuid/56053471-6300-4bb3-81fa-643f7b8eeee4";
+      preLVM = true;
+    };
+    cryptswap = {
+      device = "/dev/disk/by-uuid/22139a66-1ffa-44c9-af17-7cc8b4b2aa75";
+      preLVM = true;
+    };
+  };
+
+  swapDevices = [
+    { device = "/dev/mapper/cryptswap"; }
+  ];
+
+  # Power management
+  services.tlp = {
+      enable = true;
+      settings = {
+        CPU_SCALING_GOVERNOR_ON_AC="performance";
+        CPU_SCALING_GOVERNOR_ON_BAT="powersave";
+      };
+    };
+
+  boot.initrd.availableKernelModules = [
+        # trimmed irrelevant ones
+        "thinkpad_acpi"
+      ];
+  # Power management
+
+  # Hyperland
+  programs.hyprland = {
+    enable = true;
+    xwayland.enable = true;
+  };
+
+  services.hypridle.enable = true;
+  programs.hyprlock.enable = true;
+
+  # Required services for Wayland/Hyperland
+  services.dbus.enable = true;
+  # security.pam.services.swaylock = { };
+  # programs.swaylock.enable = true;
+  
+  # Desktop environment essentials
+  services.displayManager.sddm.enable = true;
+  # services.displayManager.defaultSession = "hyprland";
+  services.displayManager.sddm.wayland.enable = true;
+
+  # Fix for screen sharing, portals, and authentication
+  xdg.portal = {
+    enable = true;
+    extraPortals = [ pkgs.xdg-desktop-portal-hyprland ];
+  };
+
+  # Polkit authentication for GUI apps
+  security.polkit.enable = true;
+
+  # Disable X11 and i3 since we're using Wayland
+  services.xserver.enable = false;
+  services.picom.enable = false;
+  # Hyperland
+
+  services.gvfs.enable = true;
+  services.udisks2.enable = true;
+
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+
+  # VirtualBox support
+  virtualisation.virtualbox.host.enable = true;
+  users.extraGroups.vboxusers.members = [ "evariste" ];
+
+  virtualisation.virtualbox.host.enableKvm = true;
+  virtualisation.virtualbox.host.addNetworkInterface = false;
+
+  # keep clean
+  nix.optimise.automatic = true;
+  nix.gc.automatic = true;
 
   networking.hostName = "evariste"; # Define your hostname.
-  # Pick only one of the below networking options.
-  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
-  networking.networkmanager.enable = true;  # Easiest to use and most distros use this by default.
+  networking.networkmanager.enable = true;
   networking.networkmanager.wifi.macAddress = "permanent";
   networking.networkmanager.ethernet.macAddress = "permanent";
   networking.networkmanager.wifi.scanRandMacAddress = false;
@@ -38,66 +137,35 @@
 	CipherString = Default:@SECLEVEL=0
   '';
 
+  # libvirt
+  virtualisation.libvirtd = {
+    enable = true;
+    qemu = {
+      package = pkgs.qemu_kvm;
+      runAsRoot = true;
+      swtpm.enable = true;
+      ovmf = {
+        enable = true;
+        packages = [(pkgs.OVMF.override {
+          secureBoot = true;
+          tpmSupport = true;
+        }).fd];
+      };
+    };
+  };
+
+  programs.virt-manager.enable = true;
+  # libvirt
+
   # Set your time zone.
   time.timeZone = "Europe/Paris";
   time.hardwareClockInLocalTime = true;
-
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
   # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
   console = {
     font = "Lat2-Terminus16";
     useXkbConfig = true; # use xkbOptions in tty.
-  };
-
-  # Enable the X11 windowing system.
-  services.xserver = {
-    enable = true;
-
-    desktopManager = {
-      xterm.enable = false;
-    };
-
-    displayManager = {
-      defaultSession = "none+i3";
-      sessionCommands = "";
-    };
-
-    windowManager.i3 = {
-      enable = true;
-      extraPackages = with pkgs; [
-	xorg.xbacklight
-	dmenu
-	i3status
-	i3lock
-	i3lock-color
-	xorg.xdpyinfo
-	dunst
-	betterlockscreen
-	i3blocks
-      ];
-    };
-
-  config = ''
-    Section "Screen"
-        Identifier     "Screen0"
-        Device         "Device0"
-        Monitor        "Monitor0"
-        DefaultDepth   24
-        Option         "Stereo" "0"
-        Option         "nvidiaXineramaInfoOrder" "DFP-5"
-        Option         "metamodes" "nvidia-auto-select +0+0 {ForceCompositionPipeline=On, ForceFullCompositionPipeline=On}"
-        Option         "SLI" "Off"
-        Option         "MultiGPU" "Off"
-        Option         "BaseMosaic" "off"
-        SubSection     "Display"
-        Depth          24
-        EndSubSection
-    EndSection
-  '';
   };
 
   # allow manual for dev purpose
@@ -108,108 +176,38 @@
   # allow nixos to install achats-in-app apps
   nixpkgs.config.allowUnfree = true;
 
-  services.picom.enable = true;
-
   # Configure keymap in X11
-  services.xserver.layout = "fr";
-  services.xserver.xkbOptions = "caps:escape";
-
-  # enable NVIDIA drivers
-  # Enable OpenGL
-  hardware.opengl = {
-   enable = true;
-   driSupport = true;
-   driSupport32Bit = true;
-  };
-
-  # Load nvidia driver for Xorg and Wayland
-  services.xserver.videoDrivers = ["nvidia"];
-
-  hardware.nvidia = {
-
-   # Modesetting is required.
-   modesetting.enable = true;
-
-  # Nvidia power management. Experimental, and can cause sleep/suspend to fail.
-   powerManagement.enable = false;
-  # Fine-grained power management. Turns off GPU when not in use.
-  # Experimental and only works on modern Nvidia GPUs (Turing or newer).
-   powerManagement.finegrained = false;
-
-  # Use the NVidia open source kernel module (not to be confused with the
-  # independent third-party "nouveau" open source driver).
-  # Support is limited to the Turing and later architectures. Full list of 
-  # supported GPUs is at: 
-  # https://github.com/NVIDIA/open-gpu-kernel-modules#compatible-gpus 
-  # Only available from driver 515.43.04+
-  # Currently alpha-quality/buggy, so false is currently the recommended setting.
-   open = false;
-
-  # Enable the Nvidia settings menu,
-  # accessible via `nvidia-settings`.
-   nvidiaSettings = true;
-
-  # Optionally, you may need to select the appropriate driver version for your specific GPU.
-   package = config.boot.kernelPackages.nvidiaPackages.stable;
-  };
-  hardware.nvidia.prime = {
-	   offload = {
-		  enable = true;
-		  enableOffloadCmd = true;
-       };
-	  # Make sure to use the correct Bus ID values for your system!
-	  intelBusId = "PCI:0:2:0";
-	  nvidiaBusId = "PCI:1:0:0";
-  };
-
-  # Enable CUPS to print documents.
-  # services.printing.enable = true;
-
-  # screen brightness
-  # programs.light.enable = true;
-  # services.actkbd = {
-    # enable = true;
-    # bindings = [
-      # { keys = [ 232 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/brightnessctl -s +5%"; }
-      # { keys = [ 233 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/brightnessctl -s 5%-"; }
-    # ];
-  # };
-  # services.udev.extraRules = ''
-  #   ACTION=="add", SUBSYSTEM=="backlight", KERNEL=="intel_backlight", MODE="0666", RUN+="${pkgs.coreutils}/bin/chmod a+w /sys/class/backlight/%k/brightness"
-  # '';
+  services.xserver.xkb.layout = "fr";
+  services.xserver.xkb.options = "caps:escape";
 
   # enable bluetooth
   services.blueman.enable = true;
 
-  sound.enable = true;
-  hardware = {
-        pulseaudio = {
-                enable = true;
-                # Enable extra bluetooth codecs
+  # Bluetooth audio
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+    settings = {
+      General = {
+        Enable = "Source,Sink,Media,Socket";
+        Experimental = true;
+      };
+    };
+  };
+
+  services.pulseaudio = {
+                enable = false;
                 package = pkgs.pulseaudioFull;
-                # Automatically switch audio to connected bluetooth device when it connects
                 extraConfig = "
                         load-module module-switch-on-connect
                 ";
         };
-        bluetooth = {
-                # Enable support for bluetooth
-                enable = true;
-                # Powers up the default bluetooth controller on boot
-                powerOnBoot = true;
-                # Modern headsets will generally try to connect using the A2DP profile, enables it
-                settings.General.Enable = "Source,Sink,Media,Socket";
-        };
-    };
   nixpkgs.config.pulseaudio = true;
-
-  # Enable touchpad support (enabled default in most desktopManager).
-  # services.xserver.libinput.enable = true;
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.evariste = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "docker" ]; # Enable ‘sudo’ for the user.
+    extraGroups = [ "wheel" "networkmanager" "docker" "libvirtd" "dialout" ]; # Enable ‘sudo’ for the user.
     shell = pkgs.zsh;
     packages = with pkgs; [
       firefox
@@ -223,42 +221,35 @@
 
   security.sudo.wheelNeedsPassword = false;
 
-  fonts = {
-    enableDefaultPackages = true;
-    packages = with pkgs; [
-      nerdfonts
-    ];
-  };
+  fonts.packages = with pkgs; [
+    # autres polices si tu veux
+  ] ++ builtins.filter lib.attrsets.isDerivation (builtins.attrValues pkgs.nerd-fonts);
+  # fonts = {
+  #   fontconfig.enable = true;
+  #   # enableDefaultPackages = true;
+  #   packages = with pkgs; [
+  #     nerdfonts
+  #   ];
+  # };
 
   programs = {
     zsh = {
         enable = true;
         enableCompletion = true;
         ohMyZsh = {
-	enable = true;
-        plugins = [ "git" "python" "man" ];
-        theme = "avit";
+	        enable = true;
+          plugins = [ "git" "python" "man" ];
+          theme = "awesomepanda";
         };
     };
   };
 
+  # direnv
+  programs.direnv.enable = true;
+  programs.direnv.nix-direnv.enable = true;
+
   # enable flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
-
-  # All values except 'enable' are optional.
- #services.redshift = {
- #  enable = true;
- #  brightness = {
- #    # Note the string values below.
- #    day = "1";
- #    night = "1";
- #  };
- #  temperature = {
- #    day = 5500;
- #    night = 3700;
- #  };
- #};
-  #services.geoclue2.appConfig.redshift.isAllowed = true;
 
   # steam
   programs.steam.enable = true;
@@ -266,15 +257,41 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
+    # Wayland
+    # polkit_kde_agent
+    waybar
+    rofi-wayland
+    mako  # Notification daemon for Wayland
+    hyprlock
+    grim
+    slurp
+    wl-clipboard
+    libnotify
+    hyprshot
+    hyprpicker
+    pywal
+    blueman
+    bluez
+    networkmanager
+    swww
+    fd
+    wofi
+    swaybg
+    hypridle
+    hyprcursor
+    bibata-cursors
+
     # stylish
     rofi
     picom
-    nerdfonts
+    # nerdfonts
     polybar
     nitrogen
     libmpdclient
 
     # useful for dev
+    nodejs
+    cargo
     bat
     man-pages
     man-pages-posix
@@ -290,18 +307,19 @@
     git
     zsh
     alacritty
+    kitty
     oh-my-zsh
-    vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+    vim
     docker
-    nvidia-podman
     direnv
     xsel
-    # tldr
+    nixpkgs-lint
 
     # useful
     spotify
     keepassxc
-    # ifwifi
+    killall
+    slack
     file
     feh
     pavucontrol
@@ -310,36 +328,24 @@
     krb5
     wget
     brightnessctl
-    # actkbd
+    actkbd
     redshift
     geoclue2 # used by redshift
     playerctl
+    qbittorrent # movies, music, games
+    vlc
+    arduino
+    nautilus
+    s-tui # for temps
+    htop
+    gdu
+    ncdu
 
     # games
     prismlauncher
-    config.boot.kernelPackages.nvidiaPackages.stable
-    # lshw
+    # config.boot.kernelPackages.nvidiaPackages.stable
     steam
   ];
-
-  # Some programs need SUID wrappers, can be configured further or are
-  # started in user sessions.
-  # programs.mtr.enable = true;
-  # programs.gnupg.agent = {
-  #   enable = true;
-  #   enableSSHSupport = true;
-  # };
-
-  # List services that you want to enable:
-
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
-
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
-  # Or disable the firewall altogether.
-  # networking.firewall.enable = false;
 
   # Copy the NixOS configuration file and link it from the resulting system
   # (/run/current-system/configuration.nix). This is useful in case you
@@ -352,6 +358,5 @@
   # this value at the release version of the first install of this system.
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system.stateVersion = "23.05"; # Did you read the comment?
-
+  system.stateVersion = "25.05"; # Did you read the comment?
 }
