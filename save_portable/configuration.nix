@@ -284,7 +284,6 @@
     # stylish
     rofi
     picom
-    # nerdfonts
     polybar
     nitrogen
     libmpdclient

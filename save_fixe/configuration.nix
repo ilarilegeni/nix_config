@@ -10,105 +10,93 @@
       ./hardware-configuration.nix
     ];
 
-  # Use the GRUB 2 boot loader.
-  # boot.loader.grub.enable = true;
-  # boot.loader.grub.efiSupport = true;
-  # boot.loader.grub.efiInstallAsRemovable = true;
-  # boot.loader.efi.efiSysMountPoint = "/boot/efi";
-  # Define on which hard drive you want to install Grub.
-  # boot.loader.grub.device = "/dev/sda"; # or "nodev" for efi only
-  boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.loader.systemd-boot.configurationLimit = 5;
+  boot.loader.efi.efiSysMountPoint = "/boot";
 
-  networking.hostName = "evariste"; # Define your hostname.
-  # Pick only one of the below networking options.
-  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
+  boot.loader.grub = {
+    enable = true;
+    device = "nodev";
+    efiSupport = true;
+    useOSProber = true;
+    theme = pkgs.stdenv.mkDerivation rec {
+      pname = "catppuccin-grub";
+      version = "1";
+      src = pkgs.fetchFromGitHub {
+        owner = "catppuccin";
+        repo = "grub";
+        rev = "803c5df";
+        hash = "sha256-/bSolCta8GCZ4lP0u5NVqYQ9Y3ZooYCNdTwORNvR7M0=";
+      };
+      installPhase = "
+        mkdir -p $out
+        cp -r src/catppuccin-mocha-grub-theme/* $out/  
+      ";
+      meta = {
+        description = "catppuccin-grub";
+      };
+    };
+  };
+
+  networking.hostName = "evariste";
   networking.networkmanager.enable = true;  # Easiest to use and most distros use this by default.
 
   # Set your time zone.
   time.timeZone = "Europe/Paris";
   time.hardwareClockInLocalTime = true;
 
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
+  swapDevices = [{
+    device = "/swapfile";
+    size = 16 * 1024; # 16GB
+  }];
+
+  # Hyperland
+  programs.hyprland = {
+    enable = true;
+    xwayland.enable = true;
+  };
+
+  services.hypridle.enable = true;
+  programs.hyprlock.enable = true;
+
+  # Required services for Wayland/Hyperland
+  services.dbus.enable = true;
+  
+  # Desktop environment essentials
+  services.displayManager.sddm.enable = true;
+  # services.displayManager.defaultSession = "hyprland";
+  services.displayManager.sddm.wayland.enable = true;
+
+  # Fix for screen sharing, portals, and authentication
+  xdg.portal = {
+    enable = true;
+    extraPortals = [ pkgs.xdg-desktop-portal-hyprland ];
+  };
+
+  # Polkit authentication for GUI apps
+  security.polkit.enable = true;
+
+  # Disable X11 and i3 since we're using Wayland
+  services.xserver.enable = false;
+  services.picom.enable = false;
+  # Hyperland
+
+  # Load amd driver for Xorg and Wayland
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelParams = [ "amd_iommu=pt" "ivrs_ioapic[32]=00:14:00" "iommu=soft" ];
+  services.xserver.videoDrivers = ["amdgpu"];
+  hardware.cpu.amd.updateMicrocode = true;
+  hardware.enableRedistributableFirmware = true;
 
   # Enable OpenGL
-  hardware.opengl = {
-    enable = true;
-    driSupport = true;
-    driSupport32Bit = true;
-  };
-
-  # Load nvidia driver for Xorg and Wayland
-  services.xserver.videoDrivers = ["nvidia"];
-
-  hardware.nvidia = {
-
-    # Modesetting is required.
-    modesetting.enable = true;
-
-    # Nvidia power management. Experimental, and can cause sleep/suspend to fail.
-    powerManagement.enable = false;
-    # Fine-grained power management. Turns off GPU when not in use.
-    # Experimental and only works on modern Nvidia GPUs (Turing or newer).
-    powerManagement.finegrained = false;
-
-    # Use the NVidia open source kernel module (not to be confused with the
-    # independent third-party "nouveau" open source driver).
-    # Support is limited to the Turing and later architectures. Full list of 
-    # supported GPUs is at: 
-    # https://github.com/NVIDIA/open-gpu-kernel-modules#compatible-gpus 
-    # Only available from driver 515.43.04+
-    # Currently alpha-quality/buggy, so false is currently the recommended setting.
-    open = false;
-
-    # Enable the Nvidia settings menu,
-	# accessible via `nvidia-settings`.
-    nvidiaSettings = true;
-
-    # Optionally, you may need to select the appropriate driver version for your specific GPU.
-    package = config.boot.kernelPackages.nvidiaPackages.stable;
-  };
+  hardware.graphics.enable = true;
 
   # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
   console = {
     font = "Lat2-Terminus16";
     # keyMap = "us";
-    useXkbConfig = true; # use xkbOptions in tty.
-  };
-
-  # Enable the X11 windowing system.
-  services.xserver = {
-    enable = true;
-
-    desktopManager = {
-      xterm.enable = false;
-    };
-
-    displayManager = {
-      defaultSession = "none+i3";
-      sessionCommands = ''
-        xrandr --output DP-0 --auto --primary --right-of HDMI-0 --output DP-2 --auto --right-of DP-0
-      ''; 
-    # xrandr --output DP-0 --auto --primary --right-of HDMI-0 --output HDMI-0 --auto
-    # xrandr --output DP-0 --auto --primary --output DP-2 --auto --left-of DP-0
-    };
-
-    windowManager.i3 = {
-      enable = true;
-      extraPackages = with pkgs; [
-		dmenu
-		i3status
-		i3lock
-		i3lock-color
-		xorg.xdpyinfo
-		dunst
-		betterlockscreen
-		i3blocks
-      ];
-    };
+    useXkbConfig = true;
   };
 
   # allow manual for dev purpose
@@ -119,64 +107,47 @@
   # allow nixos to install achats-in-app apps
   nixpkgs.config.allowUnfree = true;
 
-  services.picom.enable = true;
-
-  # Configure keymap in X11
-  services.xserver = {
-    layout  = "us";
-    xkbVariant = "intl";
-    xkbOptions = "caps:escape";
-  };
+  # services.picom.enable = true;
 
   # keybinds
-  # sound.mediaKeys.enable = true;
-  # services.actkbd = {
-    # enable = true;
-    # bindings = [
-      # { keys = [ 164 ]; events = [ "key" ]; command = "${pkgs.playerctl}/bin/playerctl play-pause"; }
-      # { keys = [ 165 ]; events = [ "key" ]; command = "/run/current-system/sw/bin/playerctl previous"; }
-      # { keys = [ 163 ]; events = [ "key" ]; command = "playerctl next"; }
-      # { keys = [ 114 ]; events = [ "key" ]; command = "playerctl volume -0.1"; }
-      # { keys = [ 115 ]; events = [ "key" ]; command = "playerctl volume +0.1"; }
-    # ];
-  # };
-
-  # Enable CUPS to print documents.
-  # services.printing.enable = true;
+  services.actkbd = {
+    enable = true;
+    bindings = [
+      # Volume down key (code 114)
+      { keys = [ 114 ]; events = [ "key" ]; command = "amixer set Master 5%-"; }
+      # Volume up key (code 115)
+      { keys = [ 115 ]; events = [ "key" ]; command = "amixer set Master 5%+"; }
+    ];
+  };
 
   # enable bluetooth
   services.blueman.enable = true;
 
-  # Enable sound.
-  sound.enable = true;
-    hardware = {
-        pulseaudio = {
-                enable = true;
-                # Enable extra bluetooth codecs
+  # Bluetooth audio
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+    settings = {
+      General = {
+        Enable = "Source,Sink,Media,Socket";
+        Experimental = true;
+      };
+    };
+  };
+
+  services.pulseaudio = {
+                enable = false;
                 package = pkgs.pulseaudioFull;
-                # Automatically switch audio to connected bluetooth device when it connects
                 extraConfig = "
                         load-module module-switch-on-connect
                 ";
         };
-        bluetooth = {
-                # Enable support for bluetooth
-                enable = true;
-                # Powers up the default bluetooth controller on boot
-                powerOnBoot = true;
-                # Modern headsets will generally try to connect using the A2DP profile, enables it
-                settings.General.Enable = "Source,Sink,Media,Socket";
-        };
-    };
   nixpkgs.config.pulseaudio = true;
-
-  # Enable touchpad support (enabled default in most desktopManager).
-  # services.xserver.libinput.enable = true;
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.evariste = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "docker" ]; # Enable ‘sudo’ for the user.
+    extraGroups = [ "wheel" "networkmanager" "docker" "libvirtd" ]; # Enable ‘sudo’ for the user.
     shell = pkgs.zsh;
     packages = with pkgs; [
       firefox
@@ -188,15 +159,9 @@
   # docker settings
   virtualisation.docker.enable = true;
 
-  fonts = {
-    enableDefaultPackages = true;
-    packages = with pkgs; [
-      nerdfonts
-    ];
-  };
-
-  # test
-  services.xserver.libinput.mouse.accelSpeed = null;
+  fonts.packages = with pkgs; [
+    # autres polices si tu veux
+  ] ++ builtins.filter lib.attrsets.isDerivation (builtins.attrValues pkgs.nerd-fonts);
 
   # steam setup
   programs.steam = {
@@ -204,7 +169,6 @@
     remotePlay.openFirewall = true; # Open ports in the firewall for Steam Remote Play
     dedicatedServer.openFirewall = true; # Open ports in the firewall for Source Dedicated Server
   };
-
 
   programs = {
     zsh = {
@@ -221,17 +185,53 @@
   # enable flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];  
 
+  virtualisation.libvirtd = {
+    enable = true;
+    qemu = {
+      package = pkgs.qemu_kvm;
+      runAsRoot = true;
+      swtpm.enable = true;
+      ovmf = {
+        enable = true;
+        packages = [(pkgs.OVMF.override {
+          secureBoot = true;
+          tpmSupport = true;
+        }).fd];
+      };
+    };
+  };
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
+    # hyprland
+    waybar
+    rofi-wayland
+    mako  # Notification daemon for Wayland
+    hyprlock
+    grim
+    slurp
+    wl-clipboard
+    libnotify
+    hyprshot
+    hyprpicker
+    pywal
+    blueman
+    bluez
+    networkmanager
+    swww
+    fd
+    wofi
+    swaybg
+    hypridle
+    hyprcursor
+    bibata-cursors
+    kitty
+
     # stylish
     rofi
     picom
-    nerdfonts
-    polybar
     nitrogen
-    libmpdclient
 
     # dev
     bat
@@ -252,10 +252,10 @@
     oh-my-zsh
     vim
     docker
-    nvidia-podman
     direnv
     xsel
     maven
+    nodejs
 
     # useful
     slack
@@ -270,31 +270,19 @@
     wget
     playerctl
     docker
+    actkbd
+    virt-manager
+    sbctl
+    nautilus
+    s-tui # for temps
+    htop
+    gdu
+    ncdu
 
     # games
     prismlauncher
     steam
-    protonup-qt
   ];
-
-  # Some programs need SUID wrappers, can be configured further or are
-  # started in user sessions.
-  # programs.mtr.enable = true;
-  # programs.gnupg.agent = {
-  #   enable = true;
-  #   enableSSHSupport = true;
-  # };
-
-  # List services that you want to enable:
-
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
-
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
-  # Or disable the firewall altogether.
-  # networking.firewall.enable = false;
 
   # Copy the NixOS configuration file and link it from the resulting system
   # (/run/current-system/configuration.nix). This is useful in case you
