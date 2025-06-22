@@ -17,6 +17,7 @@
   # Define on which hard drive you want to install Grub.
   boot.loader.efi.canTouchEfiVariables = true;
   boot.loader.efi.efiSysMountPoint = "/boot";
+  boot.blacklistedKernelModules = [ "nvidia" "nouveau" ];
 
   boot.loader.grub = {
     enable = true;
@@ -59,12 +60,23 @@
 
   # Power management
   services.tlp = {
-      enable = true;
-      settings = {
-        CPU_SCALING_GOVERNOR_ON_AC="performance";
-        CPU_SCALING_GOVERNOR_ON_BAT="powersave";
-      };
+    enable = true;
+    settings = {
+      # Gouverneurs
+      CPU_SCALING_GOVERNOR_ON_AC = "performance";
+      CPU_SCALING_GOVERNOR_ON_BAT = "powersave";
+  
+      # Politique énergétique : priorité performance sur secteur
+      CPU_ENERGY_PERF_POLICY_ON_AC = "performance";
+  
+      # Supprime les limites sur fréquence CPU sur secteur
+      CPU_SCALING_MIN_FREQ_ON_AC = 0;
+      CPU_SCALING_MAX_FREQ_ON_AC = 0;
+  
+      # Si jamais nécessaire (pour forcer désactivation du throttling léger)
+      CPU_BOOST_ON_AC = 1;
     };
+  };
 
   boot.initrd.availableKernelModules = [
         # trimmed irrelevant ones
@@ -195,14 +207,23 @@
     };
   };
 
-  services.pulseaudio = {
-                enable = false;
-                package = pkgs.pulseaudioFull;
-                extraConfig = "
-                        load-module module-switch-on-connect
-                ";
-        };
-  nixpkgs.config.pulseaudio = true;
+  services.pulseaudio.enable = false;
+  
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+    audio.enable = true;
+    wireplumber.enable = true;
+
+    # Ceci active un policy script personnalisé pour suivre la sortie par défaut
+    wireplumber.extraConfig = {
+      "policy.default" = {
+        "media.follow-default" = true;
+      };
+    };
+  };
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.evariste = {
@@ -224,13 +245,6 @@
   fonts.packages = with pkgs; [
     # autres polices si tu veux
   ] ++ builtins.filter lib.attrsets.isDerivation (builtins.attrValues pkgs.nerd-fonts);
-  # fonts = {
-  #   fontconfig.enable = true;
-  #   # enableDefaultPackages = true;
-  #   packages = with pkgs; [
-  #     nerdfonts
-  #   ];
-  # };
 
   programs = {
     zsh = {
@@ -253,6 +267,24 @@
 
   # steam
   programs.steam.enable = true;
+
+  environment.variables = {
+    XCURSOR_THEME = "Bibata-Modern-Ice";
+    XCURSOR_SIZE = "20";
+    HYPRCURSOR_SIZE="20";
+
+    # VA-API + Firefox Wayland
+    LIBVA_DRIVER_NAME = "iHD";
+    LIBVA_DRIVERS_PATH = "/run/opengl-driver/lib/dri";
+    MOZ_ENABLE_WAYLAND = "1";
+    WLR_RENDERER = "vulkan"; # ou "gl" si Vulkan rame
+  };
+
+  # OpenGL
+  hardware.graphics = {
+    enable = true;
+    extraPackages = with pkgs; [ intel-media-driver ];
+  };
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
@@ -323,6 +355,7 @@
     file
     feh
     pavucontrol
+    pulseaudio
     flameshot
     sshfs
     krb5
@@ -340,6 +373,12 @@
     htop
     gdu
     ncdu
+    intel-media-driver  # important pour Iris Xe
+    libva
+    libva-utils
+    mesa
+    vaapiIntel
+    vaapiVdpau
 
     # games
     prismlauncher
