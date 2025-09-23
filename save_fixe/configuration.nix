@@ -36,6 +36,21 @@
         description = "catppuccin-grub";
       };
     };
+    extraConfig = ''
+        set default=saved
+        save_default=true
+    '';
+    extraEntries = ''
+        menuentry "UEFI" {
+          fwsetup
+        }
+        menuentry "Reboot" {
+          reboot
+        }
+        menuentry "Shutdown" {
+          halt
+        }
+    '';
   };
 
   networking.hostName = "evariste";
@@ -44,6 +59,23 @@
   # Set your time zone.
   time.timeZone = "Europe/Paris";
   time.hardwareClockInLocalTime = true;
+
+  fileSystems."/mnt/steamdrive" = {
+    device = "/dev/disk/by-uuid/86B9-FC96";  # remplace par l'UUID de ta partition NTFS
+    fsType = "exfat";
+    options = [
+      "rw"
+      "uid=1000"               # ton UID utilisateur (probablement 1000)
+      "gid=100"                # ton groupe (100 = users en général)
+      "fmask=0111"             # permet l'exécution des fichiers
+      "dmask=0000"
+      "exec"
+      "nofail"
+      "noauto"
+      "x-systemd.automount"
+      "x-systemd.device-timeout=5s"
+    ];
+  };
 
   swapDevices = [{
     device = "/swapfile";
@@ -54,6 +86,7 @@
   programs.hyprland = {
     enable = true;
     xwayland.enable = true;
+    withUWSM = true; # recommended for most users
   };
 
   services.hypridle.enable = true;
@@ -87,9 +120,40 @@
   services.xserver.videoDrivers = ["amdgpu"];
   hardware.cpu.amd.updateMicrocode = true;
   hardware.enableRedistributableFirmware = true;
+  hardware.sensor.iio.enable = true;
+
+  # systemd.services.set-asus-fan = {
+  #   description = "Set ASUS NB WMI fan speed";
+  #   wantedBy = [ "multi-user.target" ];
+  #   script = ''
+  #     for dir in /sys/devices/platform/asus-nb-wmi/hwmon/*; do
+  #       if [ "$(cat "$dir/name")" = "asus" ]; then
+  #         echo "ASUS fan handle found in directory: $dir"
+  #         sudo echo 0 > "$dir/pwm1_enable"
+  #       fi
+  #     done
+  #     echo "[set-asus-fan] Ending ASUS fan configuration..."
+  #   '';
+  #   serviceConfig = {
+  #     Type = "oneshot";
+  #     User = "root";
+  #     Group = "root";
+  #   };
+  # };
 
   # Enable OpenGL
-  hardware.graphics.enable = true;
+  hardware = {
+    graphics = {
+        enable = true;
+        enable32Bit = true;
+    };
+
+    amdgpu.amdvlk = {
+        enable = true;
+        support32Bit.enable = true;
+    };
+  };
+
 
   # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
@@ -135,19 +199,28 @@
     };
   };
 
-  services.pulseaudio = {
-                enable = false;
-                package = pkgs.pulseaudioFull;
-                extraConfig = "
-                        load-module module-switch-on-connect
-                ";
-        };
-  nixpkgs.config.pulseaudio = true;
+  services.pulseaudio.enable = false;
+  
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+    audio.enable = true;
+    wireplumber.enable = true;
+
+    # Ceci active un policy script personnalisé pour suivre la sortie par défaut
+    wireplumber.extraConfig = {
+      "policy.default" = {
+        "media.follow-default" = true;
+      };
+    };
+  };
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.evariste = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "docker" "libvirtd" ]; # Enable ‘sudo’ for the user.
+    extraGroups = [ "wheel" "networkmanager" "docker" "libvirtd" "dialout" ]; # Enable ‘sudo’ for the user.
     shell = pkgs.zsh;
     packages = with pkgs; [
       firefox
@@ -166,8 +239,8 @@
   # steam setup
   programs.steam = {
     enable = true;
-    remotePlay.openFirewall = true; # Open ports in the firewall for Steam Remote Play
-    dedicatedServer.openFirewall = true; # Open ports in the firewall for Source Dedicated Server
+    # remotePlay.openFirewall = true; # Open ports in the firewall for Steam Remote Play
+    # dedicatedServer.openFirewall = true; # Open ports in the firewall for Source Dedicated Server
   };
 
   programs = {
@@ -199,6 +272,12 @@
         }).fd];
       };
     };
+  };
+
+  environment.variables = {
+    XCURSOR_THEME = "Bibata-Modern-Ice";
+    XCURSOR_SIZE = "20";
+    HYPRCURSOR_SIZE="20";
   };
 
   # List packages installed in system profile. To search, run:
@@ -237,7 +316,6 @@
     bat
     man-pages
     man-pages-posix
-    neovim
     gcc
     zip
     unzip
@@ -256,6 +334,7 @@
     xsel
     maven
     nodejs
+    arduino
 
     # useful
     slack
@@ -263,6 +342,7 @@
     keepassxc
     file
     feh
+    pulseaudio
     pavucontrol
     flameshot
     sshfs
@@ -278,10 +358,17 @@
     htop
     gdu
     ncdu
+    ntfs3g
+
+    #lvim
+    lunarvim
+    marksman
+    shellcheck
 
     # games
     prismlauncher
     steam
+    mangohud
   ];
 
   # Copy the NixOS configuration file and link it from the resulting system
