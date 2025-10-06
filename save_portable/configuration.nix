@@ -8,7 +8,131 @@
   imports =
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
+
+      <home-manager/nixos>
     ];
+
+  home-manager.users.evariste = { pkgs, lib, ... }: {
+    home.stateVersion = "25.05";
+    programs.neovim = {
+      enable = true;
+      extraPackages = with pkgs; [
+        # LazyVim
+        lua-language-server
+        stylua
+        # Telescope
+        ripgrep
+      ];
+
+      plugins = with pkgs.vimPlugins; [
+        lazy-nvim
+      ];
+
+      extraLuaConfig =
+        let
+          plugins = with pkgs.vimPlugins; [
+            # LazyVim
+            LazyVim
+            bufferline-nvim
+            cmp-buffer
+            cmp-nvim-lsp
+            cmp-path
+            cmp_luasnip
+            conform-nvim
+            dashboard-nvim
+            dressing-nvim
+            flash-nvim
+            friendly-snippets
+            gitsigns-nvim
+            indent-blankline-nvim
+            lualine-nvim
+            neo-tree-nvim
+            neoconf-nvim
+            neodev-nvim
+            noice-nvim
+            nui-nvim
+            nvim-cmp
+            nvim-lint
+            nvim-lspconfig
+            nvim-notify
+            nvim-spectre
+            nvim-treesitter
+            nvim-treesitter-context
+            nvim-treesitter-textobjects
+            nvim-ts-autotag
+            nvim-ts-context-commentstring
+            nvim-web-devicons
+            persistence-nvim
+            plenary-nvim
+            telescope-fzf-native-nvim
+            telescope-nvim
+            todo-comments-nvim
+            tokyonight-nvim
+            trouble-nvim
+            vim-illuminate
+            vim-startuptime
+            which-key-nvim
+            { name = "LuaSnip"; path = luasnip; }
+            { name = "catppuccin"; path = catppuccin-nvim; }
+            { name = "mini.ai"; path = mini-nvim; }
+            { name = "mini.bufremove"; path = mini-nvim; }
+            { name = "mini.comment"; path = mini-nvim; }
+            { name = "mini.indentscope"; path = mini-nvim; }
+            { name = "mini.pairs"; path = mini-nvim; }
+            { name = "mini.surround"; path = mini-nvim; }
+          ];
+          mkEntryFromDrv = drv:
+            if lib.isDerivation drv then
+              { name = "${lib.getName drv}"; path = drv; }
+            else
+              drv;
+          lazyPath = pkgs.linkFarm "lazy-plugins" (builtins.map mkEntryFromDrv plugins);
+        in
+        ''
+          require("lazy").setup({
+            defaults = {
+              lazy = true,
+            },
+            dev = {
+              -- reuse files from pkgs.vimPlugins.*
+              path = "${lazyPath}",
+              patterns = { "" },
+              -- fallback to download
+              fallback = true,
+            },
+            spec = {
+              { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+              -- The following configs are needed for fixing lazyvim on nix
+              -- force enable telescope-fzf-native.nvim
+              { "nvim-telescope/telescope-fzf-native.nvim", enabled = true },
+              -- disable mason.nvim, use programs.neovim.extraPackages
+              { "williamboman/mason-lspconfig.nvim", enabled = false },
+              { "williamboman/mason.nvim", enabled = false },
+              -- import/override with your plugins
+              { import = "plugins" },
+              -- treesitter handled by xdg.configFile."nvim/parser", put this line at the end of spec to clear ensure_installed
+              { "nvim-treesitter/nvim-treesitter", opts = { ensure_installed = {} } },
+            },
+          })
+        '';
+    };
+
+    # https://github.com/nvim-treesitter/nvim-treesitter#i-get-query-error-invalid-node-type-at-position
+    xdg.configFile."nvim/parser".source =
+      let
+        parsers = pkgs.symlinkJoin {
+          name = "treesitter-parsers";
+          paths = (pkgs.vimPlugins.nvim-treesitter.withPlugins (plugins: with plugins; [
+            c
+            lua
+          ])).dependencies;
+        };
+      in
+      "${parsers}/parser";
+
+    # Normal LazyVim config here, see https://github.com/LazyVim/starter/tree/main/lua
+    xdg.configFile."nvim/lua".source = ./lua;
+  };
 
   nixpkgs.config.permittedInsecurePackages = [
                 "qbittorrent-4.6.4"
@@ -17,13 +141,30 @@
   # Define on which hard drive you want to install Grub.
   boot.loader.efi.canTouchEfiVariables = true;
   boot.loader.efi.efiSysMountPoint = "/boot";
-  boot.blacklistedKernelModules = [ "nvidia" "nouveau" ];
+  boot.supportedFilesystems = [ "zfs" ];
+  networking.hostId = "deadbeef";
+  # boot.blacklistedKernelModules = [ "nvidia" "nouveau" ];
 
   boot.loader.grub = {
     enable = true;
     device = "nodev";
     efiSupport = true;
     useOSProber = true;
+    extraEntries = ''
+                menuentry "Reboot" {
+                    reboot
+                }
+                menuentry "Poweroff" {
+                    halt
+                }
+                menuentry "UEFI" {
+                    fwsetup
+                }
+            '';
+    extraConfig = "
+                GRUB_DEFAULT=saved
+                GRUB_SAVEDEFAULT=true
+    ";
     theme = pkgs.stdenv.mkDerivation rec {
       pname = "catppuccin-grub";
       version = "1";
@@ -59,6 +200,8 @@
   ];
 
   # Power management
+  powerManagement.powertop.enable = true;
+
   services.tlp = {
     enable = true;
     settings = {
@@ -68,9 +211,10 @@
   
       # Politique énergétique : priorité performance sur secteur
       CPU_ENERGY_PERF_POLICY_ON_AC = "performance";
+      CPU_ENERGY_PERF_POLICY_ON_BAT = "power";
   
       # Supprime les limites sur fréquence CPU sur secteur
-      CPU_SCALING_MIN_FREQ_ON_AC = 0;
+      CPU_SCALING_MIN_FREQ_ON_AC = 1000000;
       CPU_SCALING_MAX_FREQ_ON_AC = 0;
   
       # Si jamais nécessaire (pour forcer désactivation du throttling léger)
@@ -78,12 +222,97 @@
     };
   };
 
+  # Service qui ajuste le profil ACPI selon batterie/secteur
+  systemd.services."acpi-platform-profile" = {
+    description = "Dynamic ACPI Platform Profile (performance on AC, low-power on battery)";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = pkgs.writeShellScript "set-platform-profile" ''
+        AC_ONLINE=$(cat /sys/class/power_supply/AC/online 2>/dev/null || echo 0)
+  
+        if [ "$AC_ONLINE" -eq 1 ]; then
+          echo "AC power detected → setting profile to performance"
+          echo performance | tee /sys/firmware/acpi/platform_profile
+        else
+          echo "Battery power detected → setting profile to low-power"
+          echo low-power | tee /sys/firmware/acpi/platform_profile
+        fi
+      '';
+    };
+  };
+  
+  # Règle udev pour relancer le service quand l’état de l’alimentation change
+  services.udev.extraRules = ''
+    SUBSYSTEM=="power_supply", ATTR{online}=="*", \
+    RUN+="${pkgs.systemd}/bin/systemctl start acpi-platform-profile.service" \
+    RUN+="${pkgs.systemd}/bin/systemctl --user start set-nvidia-power-mode.service"
+  '';
+  # systemd.services."set-platform-profile" = {
+  #   description = "Set ACPI Platform Profile to Performance";
+  #   wantedBy = [ "multi-user.target" ];
+  #   serviceConfig = {
+  #     Type = "oneshot";
+  #     ExecStart = ''/run/current-system/sw/bin/sh -c "echo performance > /sys/firmware/acpi/platform_profile"'';
+  #   };
+  # };
+
+
   boot.initrd.availableKernelModules = [
         # trimmed irrelevant ones
         "thinkpad_acpi"
       ];
   # Power management
 
+  # VPN
+  networking.firewall.checkReversePath = false; 
+
+  ###### NVIDIA Optimus avec bbswitch ######
+
+  hardware.nvidia = {
+    modesetting.enable = true;
+    powerManagement.enable = true;
+    powerManagement.finegrained = true;
+    prime = {
+      offload.enable = true;
+      intelBusId = "PCI:0:2:0";      # ← à adapter à ton système
+      nvidiaBusId = "PCI:1:0:0";     # ← à adapter aussi
+    };
+    open = false;
+    nvidiaSettings = true;
+    package = config.boot.kernelPackages.nvidiaPackages.stable;
+  };
+  
+  # Active les pilotes NVIDIA pour X11/Wayland
+  services.xserver.videoDrivers = [ "nvidia" "intel" ];
+  
+  # Variables d’environnement nécessaires à l’offload NVIDIA
+  environment.variables = {
+    __NV_PRIME_RENDER_OFFLOAD = "1";
+    __NV_PRIME_RENDER_OFFLOAD_PROVIDER = "NVIDIA-G0";
+    __GLX_VENDOR_LIBRARY_NAME = "nvidia";
+    __VK_LAYER_NV_optimus = "NVIDIA_only";
+  };
+  
+  # Service systemd utilisateur : commute bbswitch ON/OFF selon l’alimentation
+  systemd.user.services.set-nvidia-power-mode = {
+    description = "Set NVIDIA power mode based on AC/battery";
+    wantedBy = [ "default.target" ];
+    script = ''
+      AC_ONLINE=$(cat /sys/class/power_supply/AC/online)
+      if [ "$AC_ONLINE" -eq 1 ]; then
+        echo "AC power: Enabling NVIDIA GPU"
+        echo ON > /proc/acpi/bbswitch 2>/dev/null || true
+      else
+        echo "Battery: Disabling NVIDIA GPU"
+        echo OFF > /proc/acpi/bbswitch 2>/dev/null || true
+      fi
+    '';
+    serviceConfig = {
+      Type = "oneshot";
+    };
+  };
+  
+  ###### Fin NVIDIA Optimus ######
   # Hyperland
   programs.hyprland = {
     enable = true;
@@ -123,6 +352,7 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   # VirtualBox support
+  virtualisation.virtualbox.host.package = pkgs.virtualbox;
   virtualisation.virtualbox.host.enable = true;
   users.extraGroups.vboxusers.members = [ "evariste" ];
 
@@ -131,7 +361,7 @@
 
   # keep clean
   nix.optimise.automatic = true;
-  nix.gc.automatic = true;
+  # nix.gc.automatic = true;
 
   networking.hostName = "evariste"; # Define your hostname.
   networking.networkmanager.enable = true;
@@ -231,7 +461,7 @@
     extraGroups = [ "wheel" "networkmanager" "docker" "libvirtd" "dialout" ]; # Enable ‘sudo’ for the user.
     shell = pkgs.zsh;
     packages = with pkgs; [
-      firefox
+      firefox-wayland
       discord
       tree
     ];
@@ -277,7 +507,9 @@
     LIBVA_DRIVER_NAME = "iHD";
     LIBVA_DRIVERS_PATH = "/run/opengl-driver/lib/dri";
     MOZ_ENABLE_WAYLAND = "1";
-    WLR_RENDERER = "vulkan"; # ou "gl" si Vulkan rame
+    WLR_RENDERER = "gl"; # ou "gl" si Vulkan rame
+    ELECTRON_OZONE_PLATFORM_HINT = "auto";
+    NIXOS_OZONE_WL = "1";
   };
 
   # OpenGL
@@ -289,6 +521,13 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
+    (writeShellScriptBin "nvidia-offload" ''
+      export __NV_PRIME_RENDER_OFFLOAD=1
+      export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
+      export __GLX_VENDOR_LIBRARY_NAME=nvidia
+      export __VK_LAYER_NV_optimus=NVIDIA_only
+      exec "$@"
+    '')
     # Wayland
     # polkit_kde_agent
     waybar
@@ -313,20 +552,13 @@
     hyprcursor
     bibata-cursors
 
-    # stylish
-    rofi
-    picom
-    polybar
-    nitrogen
-    libmpdclient
-
     # useful for dev
     nodejs
     cargo
     bat
     man-pages
     man-pages-posix
-    neovim
+    clang
     gcc
     zip
     unzip
@@ -378,6 +610,10 @@
     mesa
     vaapiIntel
     vaapiVdpau
+    mesa
+    vaapi-intel-hybrid
+    pkgs.ffmpeg-full
+    libreoffice
 
     # games
     prismlauncher

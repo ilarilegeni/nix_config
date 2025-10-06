@@ -1,14 +1,11 @@
 {
         "layer": "top",
-        "output": ["DP-2"],
         "position": "top",
-        "height": 20,
-        "margin": 0,
-        "spacing": 0,
         "reload_style_on_change": true,
-        "modules-left": ["clock","tray","pulseaudio","custom/audio-output"],
+        "modules-left": ["clock","tray","pulseaudio","custom/audio-output","custom/notification", "custom/power-profiles-daemon"],
+        "modules-left-center": ["tray"],
         "modules-center": ["hyprland/workspaces"],
-        "modules-right": ["cpu","memory","disk","temperature","custom/endpoint","bluetooth","network"],
+        "modules-right": ["cpu","memory","disk","temperature","custom/endpoint","bluetooth","network","battery"],
 
 
         "pulseaudio": {
@@ -20,8 +17,8 @@
               "muted": "󰖁 "
             },
             "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-            "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
-            "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+            "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 1%+",
+            "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 1%-"
         },
         "hyprland/workspaces": {
             "format": "{icon}",
@@ -62,7 +59,7 @@
             }
         },
         "network": {
-            "interface": "wlp11s0",
+            "interface": "wlp9s0",
 	          "format": "{ifname}",
 	          "format-wifi": "{essid} ({signalStrength}%) ",
 	          "format-ethernet": "{ifname} ",
@@ -89,7 +86,7 @@
             "on-click-right": "blueman-manager",
         }, 
         "battery": {
-            "interval":30,
+            "interval":15,
             "states": {
                 "good": 95,
                 "warning": 30,
@@ -109,10 +106,9 @@
             ],
         },
         "custom/audio-output": {
-          "exec": "~/.config/scripts/audio-output.sh",
-          "interval": 2,
-          "tooltip": false,
-          "on-click": "~/.config/scripts/audio-switcher.sh"
+            "format": "󰓃",
+            "tooltip": false,
+            "on-click": "~/.config/scripts/audio-switcher.sh"
         },
         "custom/nix-updates": {
           "format": "{} 󱄅",
@@ -129,6 +125,12 @@
           "tooltip": false,
           "class": "network-speed"
         },
+        "custom/notification": {
+          "exec": "~/.config/scripts/mako_mode.sh",
+          "on-click": "~/.config/scripts/mako_mode.sh toggle",
+          "interval": 1,
+          "tooltip": false
+        },
         "custom/expand": {
             "format": "",
             "tooltip": false
@@ -136,6 +138,11 @@
         "custom/endpoint":{
             "format": "|",
             "tooltip": false
+        },
+        "custom/power-profiles-daemon": {
+            "exec": "~/.config/scripts/power-get.sh",
+            "interval": 1,
+            "on-click": "~/.config/scripts/ppd-cycle.sh"
         },
         "group/expand": {
             "orientation": "horizontal",
@@ -172,7 +179,8 @@
           "on-click": "kitty -e gdu /"
         },
         "temperature": {
-            "hwmon-path": ["/sys/class/hwmon/hwmon2/temp1_input"],
+            "thermal-zone": 2,
+            "hwmon-path": ["/sys/class/hwmon/hwmon7/temp5_input", "/sys/class/thermal/thermal_zone7/temp"],
             "critical-threshold": 80,
             "format": "{temperatureC}° {icon}",
             "format-icons": ["󱃃", "󰔏", "󱃂"],

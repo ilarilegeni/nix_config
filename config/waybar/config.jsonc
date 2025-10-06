@@ -1,8 +1,7 @@
 {
     "layer": "top",
-    "output": ["DP-2"],
     "position": "top",
-    "height": 20,
+    "height": 30,
     "spacing": 1,
     "margin": 0,
     "modules-left": ["sway/workspaces", "sway/mode", "custom/weather", "custom/quote"],
