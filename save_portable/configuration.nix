@@ -200,10 +200,11 @@
   ];
 
   # Power management
-  powerManagement.powertop.enable = true;
+  services.power-profiles-daemon.enable = true;
+  powerManagement.powertop.enable = false;
 
   services.tlp = {
-    enable = true;
+    enable = false;
     settings = {
       # Gouverneurs
       CPU_SCALING_GOVERNOR_ON_AC = "performance";
@@ -223,30 +224,29 @@
   };
 
   # Service qui ajuste le profil ACPI selon batterie/secteur
-  systemd.services."acpi-platform-profile" = {
-    description = "Dynamic ACPI Platform Profile (performance on AC, low-power on battery)";
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = pkgs.writeShellScript "set-platform-profile" ''
-        AC_ONLINE=$(cat /sys/class/power_supply/AC/online 2>/dev/null || echo 0)
-  
-        if [ "$AC_ONLINE" -eq 1 ]; then
-          echo "AC power detected → setting profile to performance"
-          echo performance | tee /sys/firmware/acpi/platform_profile
-        else
-          echo "Battery power detected → setting profile to low-power"
-          echo low-power | tee /sys/firmware/acpi/platform_profile
-        fi
-      '';
-    };
-  };
+  # systemd.services."acpi-platform-profile" = {
+  #   description = "Dynamic ACPI Platform Profile (performance on AC, low-power on battery)";
+  #   serviceConfig = {
+  #     Type = "oneshot";
+  #     ExecStart = pkgs.writeShellScript "set-platform-profile" ''
+  #       AC_ONLINE=$(cat /sys/class/power_supply/AC/online 2>/dev/null || echo 0)
+  # 
+  #       if [ "$AC_ONLINE" -eq 1 ]; then
+  #         echo "AC power detected → setting profile to performance"
+  #         echo performance | tee /sys/firmware/acpi/platform_profile
+  #       else
+  #         echo "Battery power detected → setting profile to low-power"
+  #         echo low-power | tee /sys/firmware/acpi/platform_profile
+  #       fi
+  #     '';
+  #   };
+  # };
   
   # Règle udev pour relancer le service quand l’état de l’alimentation change
-  services.udev.extraRules = ''
-    SUBSYSTEM=="power_supply", ATTR{online}=="*", \
-    RUN+="${pkgs.systemd}/bin/systemctl start acpi-platform-profile.service" \
-    RUN+="${pkgs.systemd}/bin/systemctl --user start set-nvidia-power-mode.service"
-  '';
+  # services.udev.extraRules = ''
+  #   SUBSYSTEM=="power_supply", ATTR{online}=="*", \
+  #   RUN+="${pkgs.systemd}/bin/systemctl start acpi-platform-profile.service"
+  # '';
   # systemd.services."set-platform-profile" = {
   #   description = "Set ACPI Platform Profile to Performance";
   #   wantedBy = [ "multi-user.target" ];
@@ -268,49 +268,49 @@
 
   ###### NVIDIA Optimus avec bbswitch ######
 
-  hardware.nvidia = {
-    modesetting.enable = true;
-    powerManagement.enable = true;
-    powerManagement.finegrained = true;
-    prime = {
-      offload.enable = true;
-      intelBusId = "PCI:0:2:0";      # ← à adapter à ton système
-      nvidiaBusId = "PCI:1:0:0";     # ← à adapter aussi
-    };
-    open = false;
-    nvidiaSettings = true;
-    package = config.boot.kernelPackages.nvidiaPackages.stable;
-  };
+  # hardware.nvidia = {
+  #   modesetting.enable = true;
+  #   powerManagement.enable = true;
+  #   powerManagement.finegrained = true;
+  #   prime = {
+  #     offload.enable = true;
+  #     intelBusId = "PCI:0:2:0";      # ← à adapter à ton système
+  #     nvidiaBusId = "PCI:1:0:0";     # ← à adapter aussi
+  #   };
+  #   open = false;
+  #   nvidiaSettings = true;
+  #   package = config.boot.kernelPackages.nvidiaPackages.stable;
+  # };
   
   # Active les pilotes NVIDIA pour X11/Wayland
-  services.xserver.videoDrivers = [ "nvidia" "intel" ];
+  services.xserver.videoDrivers = [ "intel" ];
   
   # Variables d’environnement nécessaires à l’offload NVIDIA
-  environment.variables = {
-    __NV_PRIME_RENDER_OFFLOAD = "1";
-    __NV_PRIME_RENDER_OFFLOAD_PROVIDER = "NVIDIA-G0";
-    __GLX_VENDOR_LIBRARY_NAME = "nvidia";
-    __VK_LAYER_NV_optimus = "NVIDIA_only";
-  };
+  # environment.variables = {
+  #   __NV_PRIME_RENDER_OFFLOAD = "1";
+  #   __NV_PRIME_RENDER_OFFLOAD_PROVIDER = "NVIDIA-G0";
+  #   __GLX_VENDOR_LIBRARY_NAME = "nvidia";
+  #   __VK_LAYER_NV_optimus = "NVIDIA_only";
+  # };
   
   # Service systemd utilisateur : commute bbswitch ON/OFF selon l’alimentation
-  systemd.user.services.set-nvidia-power-mode = {
-    description = "Set NVIDIA power mode based on AC/battery";
-    wantedBy = [ "default.target" ];
-    script = ''
-      AC_ONLINE=$(cat /sys/class/power_supply/AC/online)
-      if [ "$AC_ONLINE" -eq 1 ]; then
-        echo "AC power: Enabling NVIDIA GPU"
-        echo ON > /proc/acpi/bbswitch 2>/dev/null || true
-      else
-        echo "Battery: Disabling NVIDIA GPU"
-        echo OFF > /proc/acpi/bbswitch 2>/dev/null || true
-      fi
-    '';
-    serviceConfig = {
-      Type = "oneshot";
-    };
-  };
+  # systemd.user.services.set-nvidia-power-mode = {
+  #   description = "Set NVIDIA power mode based on AC/battery";
+  #   wantedBy = [ "default.target" ];
+  #   script = ''
+  #     AC_ONLINE=$(cat /sys/class/power_supply/AC/online)
+  #     if [ "$AC_ONLINE" -eq 1 ]; then
+  #       echo "AC power: Enabling NVIDIA GPU"
+  #       echo ON > /proc/acpi/bbswitch 2>/dev/null || true
+  #     else
+  #       echo "Battery: Disabling NVIDIA GPU"
+  #       echo OFF > /proc/acpi/bbswitch 2>/dev/null || true
+  #     fi
+  #   '';
+  #   serviceConfig = {
+  #     Type = "oneshot";
+  #   };
+  # };
   
   ###### Fin NVIDIA Optimus ######
   # Hyperland
@@ -521,13 +521,13 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-    (writeShellScriptBin "nvidia-offload" ''
-      export __NV_PRIME_RENDER_OFFLOAD=1
-      export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
-      export __GLX_VENDOR_LIBRARY_NAME=nvidia
-      export __VK_LAYER_NV_optimus=NVIDIA_only
-      exec "$@"
-    '')
+    # (writeShellScriptBin "nvidia-offload" ''
+    #   export __NV_PRIME_RENDER_OFFLOAD=1
+    #   export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
+    #   export __GLX_VENDOR_LIBRARY_NAME=nvidia
+    #   export __VK_LAYER_NV_optimus=NVIDIA_only
+    #   exec "$@"
+    # '')
     # Wayland
     # polkit_kde_agent
     waybar
@@ -551,6 +551,7 @@
     hypridle
     hyprcursor
     bibata-cursors
+    powertop
 
     # useful for dev
     nodejs
