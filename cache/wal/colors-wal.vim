@@ -1,0 +1,23 @@
+" Special
+let wallpaper  = "/home/evariste/Dotfiles/wallpapers/pywallpaper.jpg"
+let background = "#021E25"
+let foreground = "#adc2b8"
+let cursor     = "#adc2b8"
+
+" Colors
+let color0  = "#021E25"
+let color1  = "#B26E4E"
+let color2  = "#2F8379"
+let color3  = "#608A7A"
+let color4  = "#AA9473"
+let color5  = "#FA8F44"
+let color6  = "#E5965F"
+let color7  = "#adc2b8"
+let color8  = "#798780"
+let color9  = "#B26E4E"
+let color10 = "#2F8379"
+let color11 = "#608A7A"
+let color12 = "#AA9473"
+let color13 = "#FA8F44"
+let color14 = "#E5965F"
+let color15 = "#adc2b8"

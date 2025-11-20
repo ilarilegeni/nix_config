@@ -1,0 +1,21 @@
+set $wallpaper /home/evariste/Dotfiles/wallpapers/pywallpaper.jpg
+
+set $background #021E25
+set $foreground #adc2b8
+
+set $color0 #021E25
+set $color1 #B26E4E
+set $color2 #2F8379
+set $color3 #608A7A
+set $color4 #AA9473
+set $color5 #FA8F44
+set $color6 #E5965F
+set $color7 #adc2b8
+set $color8 #798780
+set $color9 #B26E4E
+set $color10 #2F8379
+set $color11 #608A7A
+set $color12 #AA9473
+set $color13 #FA8F44
+set $color14 #E5965F
+set $color15 #adc2b8
