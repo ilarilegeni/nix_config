@@ -1,0 +1,194 @@
+{
+        "layer": "top",
+        "position": "top",
+        "reload_style_on_change": true,
+        "modules-left": ["clock","tray","pulseaudio","custom/audio-output","custom/notification", "custom/power-profiles-daemon"],
+        "modules-left-center": ["tray"],
+        "modules-center": ["hyprland/workspaces"],
+        "modules-right": ["cpu","memory","disk","temperature","custom/endpoint","bluetooth","network","battery"],
+
+
+        "pulseaudio": {
+            "scroll-step": 5,
+            "format": "{volume}% {icon}",
+            "format-muted": "Muté 󰖁 ",
+            "format-icons": {
+              "default": ["󰕿 ", "󰖀 ", "󰕾 "],
+              "muted": "󰖁 "
+            },
+            "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+            "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 1%+",
+            "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 1%-"
+        },
+        "hyprland/workspaces": {
+            "format": "{icon}",
+            "format-icons": {
+                "active": "",
+                "default": "",
+                "empty": ""
+            },
+            "persistent-workspaces": {
+                "*": [ 1,2,3,4,5 ]
+            }
+        },
+        "clock": {
+            "format": "{:%H:%M:%S} 󰥔",
+            "format-alt": "{:%Y-%m-%d} 󰃮",
+            "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+            "interval": 1,
+            "calendar": {
+                "mode"          : "month",
+                "mode-mon-col"  : 3,
+                "weeks-pos"     : "right",
+                "on-scroll"     : 1,
+                "on-click-right": "mode",
+                "format": {
+                    "months":     "<span color='#d3c6aa'><b>{}</b></span>",
+                    "days":       "<span color='#e67e80'>{}</span>",
+                    "weeks":      "<span color='#a7c080'><b>W{}</b></span>",
+                    "weekdays":   "<span color='#7fbbb3'><b>{}</b></span>",
+                    "today":      "<span color='#dbbc7f'><b><u>{}</u></b></span>"
+                }
+            },
+            "actions": {
+                "on-click-right": "mode",
+                "on-click-forward": "tz_up",
+                "on-click-backward": "tz_down",
+                "on-scroll-up": "shift_up",
+                "on-scroll-down": "shift_down"
+            }
+        },
+        "network": {
+            "interface": "wlp9s0",
+	          "format": "{ifname}",
+	          "format-wifi": "{essid} ({signalStrength}%) ",
+	          "format-ethernet": "{ifname} ",
+	          "format-disconnected": "", //An empty format will hide the module.
+	          "format-disconnected": "",
+	          "tooltip-format": "{ifname}",
+	          "tooltip-format-wifi": "{bandwidthDownBytes}  {bandwidthUpBytes}  {essid} ({signalStrength}%) ",
+	          "tooltip-format-ethernet": "{ifname} ",
+	          "tooltip-format-disconnected": "Disconnected",
+	          "max-length": 50,
+            "on-click": "kitty nmtui"
+        },
+        "bluetooth": {
+            "format-on": "󰂯",
+            "format-off": "BT-off",
+            "format-disabled": "󰂲",
+            "format-connected-battery": "{device_battery_percentage}% 󰂯",
+            "format-alt": "{device_alias} 󰂯",
+            "tooltip-format": "{controller_alias}\t{controller_address}\n\n{num_connections} connected",
+            "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{num_connections} connected\n\n{device_enumerate}",
+            "tooltip-format-enumerate-connected": "{device_alias}\n{device_address}",
+            "tooltip-format-enumerate-connected-battery": "{device_alias}\n{device_address}\n{device_battery_percentage}%",
+            "on-click": "blueman-manager",
+            "on-click-right": "blueman-manager",
+        }, 
+        "battery": {
+            "interval":15,
+            "states": {
+                "good": 95,
+                "warning": 30,
+                "critical": 20
+            },
+            "format": "{capacity}% {icon}",
+            "format-charging": "{capacity}% 󰂄",
+            "format-plugged": "{capacity}% 󰂄 ",
+            "format-alt": "{time} {icon}",
+            "format-icons": [
+                "󰁻",
+            "󰁼",
+            "󰁾",
+            "󰂀",
+            "󰂂",
+            "󰁹"
+            ],
+        },
+        "custom/audio-output": {
+            "format": "󰓃",
+            "tooltip": false,
+            "on-click": "~/.config/scripts/audio-switcher.sh"
+        },
+        "custom/nix-updates": {
+          "format": "{} 󱄅",
+          "interval": 3600,
+          "exec": "[[ $(nix-channel --update --dry-run 2>&1 | grep -c '^') -gt 0 ]] && echo 1 || echo 0",
+          "on-click": "kitty sh -c 'sudo nix-channel --update && nixos-rebuild switch; echo Done - Press enter to exit; read'; pkill -SIGRTMIN+8 waybar",
+          "signal": 8,
+          "tooltip": false
+        },
+        "custom/network-speed": {
+          "format": "{}",
+          "exec": "~/.config/waybar/scripts/network-speed.sh",
+          "interval": 1,
+          "tooltip": false,
+          "class": "network-speed"
+        },
+        "custom/notification": {
+          "exec": "~/.config/scripts/mako_mode.sh",
+          "on-click": "~/.config/scripts/mako_mode.sh toggle",
+          "interval": 1,
+          "tooltip": false
+        },
+        "custom/expand": {
+            "format": "",
+            "tooltip": false
+        },
+        "custom/endpoint":{
+            "format": "|",
+            "tooltip": false
+        },
+        "custom/power-profiles-daemon": {
+            "exec": "~/.config/scripts/power-get.sh",
+            "interval": 1,
+            "on-click": "~/.config/scripts/ppd-cycle.sh"
+        },
+        "group/expand": {
+            "orientation": "horizontal",
+            "drawer": {
+                "transition-duration": 600,
+                "transition-to-left": true,
+                "click-to-reveal": true
+            },
+            "modules": ["custom/expand", "custom/colorpicker","cpu","memory","temperature","custom/endpoint"],
+        },
+        "custom/colorpicker": {
+            "format": "{}",
+            "return-type": "json",
+            "interval": "once",
+            "exec": "~/.config/waybar/scripts/colorpicker.sh -j",
+            "on-click": "~/.config/waybar/scripts/colorpicker.sh",
+            "signal": 1
+        },
+        "cpu": {
+          "interval": 1,
+	        "format": "{icon0}{icon1}{icon2}{icon3} {usage:>2}% ",
+	        "format-icons": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
+          "on-click": "kitty -e htop"
+        },
+        "memory": {
+            "format": "{used}g/{total}g 󰍛 ",
+            "interval": 1,
+            "on-click": "kitty -e htop"
+        },
+        "disk": {
+	        "interval": 30,
+	        "format": "{specific_free:0.2f}GB ",
+	        "unit": "GB",
+          "on-click": "kitty -e gdu /"
+        },
+        "temperature": {
+            "thermal-zone": 2,
+            "hwmon-path": ["/sys/class/hwmon/hwmon7/temp5_input", "/sys/class/thermal/thermal_zone7/temp"],
+            "critical-threshold": 80,
+            "format": "{temperatureC}° {icon}",
+            "format-icons": ["󱃃", "󰔏", "󱃂"],
+            "on-click": "kitty -e s-tui"
+        },
+        "tray": {
+            "icon-size": 18,
+            "spacing": 5
+        },
+} 
+
